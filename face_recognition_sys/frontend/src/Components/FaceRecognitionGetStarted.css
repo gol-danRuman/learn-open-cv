@@ -1,0 +1,79 @@
+.face-detection-service {
+    font-family: Arial, sans-serif;
+    height: 100vh;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+   }
+   
+   .face-detection-service h1 {
+    color: #4c4c4c;
+    margin-bottom: 20px;
+   }
+   
+   .face-detection-service p {
+    color: #6f6f6f;
+    margin-bottom: 20px;
+   }
+   
+   .face-detection-service button {
+    background-color: #1c77d3;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    font-size: 16px;
+    margin-bottom: 20px;
+   }
+   
+   .face-detection-service a {
+    display: block;
+    margin-top: 1rem;
+    background-color: #33b05d !important;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 12px 24px;
+    font-size: 16px;
+    cursor: pointer;
+    color: #ffffff;
+    text-decoration: none;
+   }
+   
+   .face-detection-service a:hover {
+    text-decoration: underline;
+   }
+   
+   .face-detection-service footer {
+    color: #9a9a9a;
+    text-align: center;
+    margin-top: 20px;
+   }
+   
+   .google-form {
+    border: 1px solid #dadada;
+    padding: 20px;
+    margin-bottom: 20px;
+   }
+   
+   .google-form h2 {
+    color: #4c4c4c;
+    margin-bottom: 20px;
+   }
+   
+   .google-form p {
+    color: #6f6f6f;
+    margin-bottom: 20px;
+   }
+
+   .signup-button{
+    margin-top: 1rem;
+    background-color: #33b05d !important;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 12px 24px;
+    font-size: 16px;
+    cursor: pointer;
+   }
