@@ -1,6 +1,9 @@
 from typing import Union
 from fastapi.encoders import jsonable_encoder
 from fastapi import FastAPI, UploadFile, File, status
+from fastapi.middleware.cors import CORSMiddleware
+
+
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 import cv2
@@ -18,7 +21,18 @@ print("Encode File Loaded")
 
 
 app = FastAPI()
+origins = [
+    "http://localhost",
+    "http://localhost:3000",
+]
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.post("/verify")
 async def compare_face(file: Union[UploadFile, None] = None):

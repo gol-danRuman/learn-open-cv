@@ -1,0 +1,9 @@
+services:
+  # A Docker web service
+  - type: web
+    name: face_recognition_system
+    runtime: python
+    plan: free
+    autoDeploy: false
+    buildCommand: pip install -r ./face_recognition_sys/requirements.txt
+    startCommand: uvicorn ./face_recognition_sys/fast_api_main:app --host 0.0.0.0 --port $PORT

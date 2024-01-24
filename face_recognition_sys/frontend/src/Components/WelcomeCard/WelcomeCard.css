@@ -70,6 +70,10 @@
     max-height: 10rem;
   }
   .selected-image-card{
-    display: grid;
+    /* display: grid; */
     justify-content: center;
+  }
+  .close-detect-btn{
+    display: flex;
+    margin-top: 1rem;
   }
