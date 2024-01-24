@@ -34,6 +34,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get()
+def initial_load():
+    return JSONResponse(
+        status_code=200,
+        content=jsonable_encoder({"message": "Api working"}),
+    )
+
 @app.post("/verify")
 async def compare_face(file: Union[UploadFile, None] = None):
     if not file:
