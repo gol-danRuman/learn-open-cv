@@ -34,7 +34,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get()
+@app.get("/")
 def initial_load():
     return JSONResponse(
         status_code=200,

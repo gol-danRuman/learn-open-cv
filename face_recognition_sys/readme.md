@@ -30,6 +30,30 @@ React applicaton to connect face recognition system build from [ref](https://www
 
 
 
+## Devops
+
+- Use Docker for building app and pushing image to dockerhub
+- Commands used for docker images and deployment
+> docker push rumancha12/face_recognition_backend_image:latest
+> docker tag face_recognition_backend_image rumancha12/face_recognition_backend_image:latest
+>  docker login
+> docker ps -a
+> docker image ls
+> docker run -it --name backend -p 8000:8000 --network bridge face_recognition_backend_image
+> docker build -t face_recognition_backend_image .
+> docker rm backend
+> sudo systemctl status docker
+> sudo systemctl restart docker
+>  docker pull m03geek/ffmpeg-opencv-dlib
+> 
+
+
+
+
+
+
+
+
 
 
 
