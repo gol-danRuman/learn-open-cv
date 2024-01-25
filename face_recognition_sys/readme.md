@@ -48,6 +48,12 @@ React applicaton to connect face recognition system build from [ref](https://www
 > 
 > 
 
+### Steps to deploy backend:
+
+- docker build -t face_recognition_backend_image .
+- docker tag face_recognition_backend_image rumancha12/face_recognition_backend_image:latest
+- docker push rumancha12/face_recognition_backend_image:latest
+- Manual Deploy on render application
 
 
 ### Hosting: 

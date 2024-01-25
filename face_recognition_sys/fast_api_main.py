@@ -24,6 +24,8 @@ app = FastAPI()
 origins = [
     "http://localhost",
     "http://localhost:3000",
+    "https://face-recognition-sys-frontend.onrender.com",
+    "https://face-recognition-sys-frontend.onrender.com/",
 ]
 
 app.add_middleware(
