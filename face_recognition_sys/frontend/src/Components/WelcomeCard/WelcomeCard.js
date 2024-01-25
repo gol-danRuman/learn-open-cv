@@ -21,7 +21,7 @@ const sendPhoto = async (file, setResponseData) => {
   formData.append('file', file);
 
   try {
-    const response = await fetch('http://127.0.0.1:8000https://face-recognition-sys-backend-api.onrender.com/verify', {
+    const response = await fetch('https://face-recognition-sys-backend-api.onrender.com/verify', {
       method: 'POST',
       body: formData,
     });
