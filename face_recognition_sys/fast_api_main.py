@@ -1,24 +1,25 @@
 from typing import Union
 from fastapi.encoders import jsonable_encoder
-from fastapi import FastAPI, UploadFile, File, status
+from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-
-from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 import cv2
 import face_recognition
 import pickle
 import numpy as np
-
+from get_drive_image_from_sheet import load_model_file
+from encode_generator import main as encoding
 
 print("Loading Encode File ...")
-file = open('EncodeFile.p', 'rb')
-encode_list_known_with_names = pickle.load(file=file)
+# file = open('EncodeFile.p', 'rb')
+# encode_list_known_with_names = pickle.load(file=file)
+# encode_list_known, name_list = encode_list_known_with_names
+file_buffer = load_model_file()
+file_buffer.seek(0)
+encode_list_known_with_names = pickle.load(file=file_buffer)
 encode_list_known, name_list = encode_list_known_with_names
 print("Encode File Loaded")
-
-
 
 app = FastAPI()
 origins = [
@@ -36,12 +37,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/")
 def initial_load():
     return JSONResponse(
         status_code=200,
         content=jsonable_encoder({"message": "Api working"}),
     )
+
 
 @app.post("/verify")
 async def compare_face(file: Union[UploadFile, None] = None):
@@ -57,9 +60,9 @@ async def compare_face(file: Union[UploadFile, None] = None):
             image_binary = await file.read()
             if len(image_binary) < 1:
                 return JSONResponse(
-                        status_code=400,
-                        content=jsonable_encoder({"error": "File Cannot be empty"}),
-                    )
+                    status_code=400,
+                    content=jsonable_encoder({"error": "File Cannot be empty"}),
+                )
 
             # Convert the binary data to a NumPy array
             image_array = np.frombuffer(image_binary, np.uint8)
@@ -104,3 +107,21 @@ async def compare_face(file: Union[UploadFile, None] = None):
                 status_code=status_code,
                 content=jsonable_encoder({'error': str(error)}),
             )
+
+
+@app.post("/start-encoding")
+async def encode_model():
+    try:
+        encoding()
+
+        return JSONResponse(
+            status_code=200,
+            content=jsonable_encoder({"status": "Success", "message": "Encoded and uploaded to model to drive"}),
+        )
+    except Exception as error:
+        print(str(error))
+
+        return JSONResponse(
+            status_code=500,
+            content=jsonable_encoder({'error': str(error)}),
+        )

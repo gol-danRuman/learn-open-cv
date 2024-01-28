@@ -2,7 +2,7 @@ import cv2
 import face_recognition
 import pickle
 
-from get_drive_image_from_sheet import get_image, get_sheet_values
+from get_drive_image_from_sheet import get_image, get_sheet_values, update_to_drive
 
 SPREADSHEET_ID = "14SobbZCDKX9IKOJjY56G-WIOfVc7BctskqEKRG2ImAo"
 
@@ -53,9 +53,13 @@ def main():
 
     encode_list_known_with_names = [encode_list_known, name_list]
 
-    print("Saving Encoded Model Started ....")
-    save_model(encode_list_known_with_names)
-    print("Saving Encoded Model Completed .....")
+    # print("Saving Encoded Model Started ....")
+    # save_model(encode_list_known_with_names)
+    # print("Saving Encoded Model Completed .....")
+
+    print("Uploading Encoded Model Started ....")
+    update_to_drive(encode_list_known_with_names)
+    print("Uploaded Encoded Model Completed .....")
 
 if __name__ == '__main__':
     main()

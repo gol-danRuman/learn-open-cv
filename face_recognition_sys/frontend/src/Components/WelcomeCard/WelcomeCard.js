@@ -1,10 +1,32 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MdFace } from 'react-icons/md';
 import { FaCamera } from "react-icons/fa";
 import './WelcomeCard.css';
 import FileInput from '../FileInputComponent/CustomFileInput';
 import Webcam from 'react-webcam';
 
+function convertBase64toBlob(base64String){
+
+  // Remove any prefix from the base64 string
+  const base64Data = base64String.split(',')[1];
+
+  // Decode the base64 string using the atob() function
+  const binaryString = atob(base64Data);
+
+  // Convert the binary string into an array of unsigned 8-bit integers
+  const binaryArray = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    binaryArray[i] = binaryString.charCodeAt(i);
+  }
+
+  // Create a new ArrayBuffer object and a new Uint8Array view of the array buffer
+  const arrayBuffer = binaryArray.buffer;
+
+  // Create a new Blob object using the Blob() constructor
+  return new Blob([arrayBuffer], { type: 'image/jpeg' });
+
+
+}
 const LandingPage = (props) => {
   return (
     <div>
@@ -27,7 +49,7 @@ const sendPhoto = async (file, setResponseData) => {
     });
 
     if (!response.ok) {
-      alert('Something went wrong');
+      alert('Something went wrong. Please Sign Up if you have not signed up yet.');
       setResponseData(null);
       // throw new Error('Failed to send photo');
     }
@@ -41,18 +63,31 @@ const sendPhoto = async (file, setResponseData) => {
 };
 
 const LiveCameraPage = (props) => {
+  const webcamRef = useRef(null);
+
+  
+
+  const handleDetect = async () => {
+    console.log("Button clicked");
+    const imageSrc = webcamRef.current.getScreenshot();
+    
+    props.setFile(convertBase64toBlob(imageSrc));
+    
+    
+    props.setIsImageSelected(true);
+    props.setIsStreamLoading(false);
+  };
+
+
   return (
     <>
-      <Webcam className="live-camera-card" imageSmoothing={props.isStreamLoading} />
+      <Webcam className="live-camera-card" imageSmoothing={props.isStreamLoading} ref={webcamRef} />
       <div className='close-detect-btn'>
         <button style={{ width: "16rem" }} onClick={() => {
           console.log("Button clicked");
           props.setIsStreamLoading(false);
         }}>Close Camera</button>
-        <button style={{ width: "16rem", marginLeft: "4rem" }} onClick={() => {
-          console.log("Button clicked");
-          props.setIsStreamLoading(false);
-        }}>Detect</button>
+        <button style={{ width: "16rem", marginLeft: "4rem" }} onClick={handleDetect}>Capture</button>
 
       </div>
 
@@ -157,7 +192,7 @@ const OptionPage = (props) => {
     <>
     {console.log(isStreamLoading, isImageSelected, isFaceDetected)}
     {
-      isStreamLoading ? <LiveCameraPage isStreamLoading={isStreamLoading} setIsStreamLoading={setIsStreamLoading} /> :
+      isStreamLoading ? <LiveCameraPage isStreamLoading={isStreamLoading} setIsStreamLoading={setIsStreamLoading} setIsImageSelected={setIsImageSelected} image={file} setFile={setFile} sendPhoto={sendPhoto} setIsFaceDetected={setIsFaceDetected} setResponseData={setResponseData} responseData={responseData}/> :
         isImageSelected ? <>
           <ImageSelectedPage image={file} isImageSelected={isImageSelected} setIsImageSelected={setIsImageSelected} sendPhoto={sendPhoto} setIsFaceDetected={setIsFaceDetected} setResponseData={setResponseData} responseData={responseData} />
         </> :

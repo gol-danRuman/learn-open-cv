@@ -1,13 +1,16 @@
-import google.auth
+
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-from googleapiclient.http import MediaIoBaseDownload
+from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 import gspread
-# import pandas as pd
+import pickle
 from oauth2client.service_account import ServiceAccountCredentials
 
 SPREADSHEET_ID = "14SobbZCDKX9IKOJjY56G-WIOfVc7BctskqEKRG2ImAo"
+# Link to Drive: https://drive.google.com/drive/u/0/folders/1vdCwukuOiDZJOHRbyrOjRi7wksli8zkzkcViZopsyun4HrhO0ANo4bjemYDiXvEmh4oKd3jO
+FILE_ID = '1vAHnSq6eZWOy3YgbZ5LoSiQix6otb_XM'
+FOLDER_ID = '1vdCwukuOiDZJOHRbyrOjRi7wksli8zkzkcViZopsyun4HrhO0ANo4bjemYDiXvEmh4oKd3jO'
 def get_sheet_values(spreadsheet_id):
     """
     Creates the batch_update the user has access to.
@@ -51,6 +54,74 @@ def get_image(image_id):
         return img
         # cv2.imshow('Photo', img)
         # cv2.waitKey(0)
+
+    except HttpError as error:
+        print(f"An error occurred while getting image: {error}")
+        return error
+
+def update_to_drive(encode_list_known):
+
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
+    try:
+        service = build('drive', 'v3', credentials=creds)
+
+        print("Saving Encoded model....")
+        file = open("EncodeFile.p", "wb")
+        pickle.dump(encode_list_known, file)
+        file.close()
+        file_metadata = {'name': 'EncodeFile.p'}
+        media = MediaFileUpload('EncodeFile.p', mimetype='application/octet-stream')
+        file = service.files().update(fileId=FILE_ID,body=file_metadata, media_body=media,fields='id').execute()
+        print(f"File: {file}")
+        print(f'File ID: {file.get("id")}')
+
+    except HttpError as error:
+        print(f"An error occurred while getting image: {error}")
+        return error
+
+
+def create_to_drive_in_folder(encode_list_known):
+
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
+    try:
+        service = build('drive', 'v3', credentials=creds)
+
+        print("Saving Encoded model....")
+        file = open("EncodeFile.p", "wb")
+        pickle.dump(encode_list_known, file)
+        file.close()
+        file_metadata = {'name': 'EncodeFile.p', 'parents': [FOLDER_ID]}
+        media = MediaFileUpload('EncodeFile.p', mimetype='application/octet-stream')
+        file = service.files().create(fileId=FILE_ID,body=file_metadata, media_body=media,fields='id').execute()
+        print(f"File: {file}")
+        print(f'File ID: {file.get("id")}')
+
+    except HttpError as error:
+        print(f"An error occurred while getting image: {error}")
+        return error
+
+
+def load_model_file():
+    import io
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
+    try:
+        service = build('drive', 'v3', credentials=creds)
+        file_id = FILE_ID
+
+        # pylint: disable=maybe-no-member
+        request = service.files().get_media(fileId=file_id)
+        file = io.BytesIO()
+        downloader = MediaIoBaseDownload(file, request)
+        done = False
+        while done is False:
+            status, done = downloader.next_chunk()
+            print(f"Download {int(status.progress() * 100)}.")
+
+        # print(file, file.getvalue())
+        return file
 
     except HttpError as error:
         print(f"An error occurred while getting image: {error}")
