@@ -118,11 +118,6 @@ const ImageSelectedPage = (props) => {
     setIsLoading(false);
   };
 
-  useEffect(() => {
-    return () => {
-      checkResponseData();
-    };
-  }, [props.responseData]);
 
 
   return (
@@ -136,6 +131,8 @@ const ImageSelectedPage = (props) => {
               <button style={{ marginTop: "1rem" }} onClick={() => {
                 console.log("Button clicked");
                 props.setIsImageSelected(false);
+                props.setIsFaceDetected(false);
+                props.setResponseData(null);
               }}>Cancel</button>
               <button style={{ marginTop: "1rem", marginLeft: "2rem" }} onClick={handleDetect} disabled={isLoading}>Detect</button>
             </div>
@@ -210,9 +207,9 @@ const OptionPage = (props) => {
 
               <div className='option-card'>
                 <h2>Choose an option</h2>
-                <button onClick={handleButtonClick} disabled={isStreamLoading}>
+                {/* <button onClick={handleButtonClick} disabled={isStreamLoading}>
                   Live Camera
-                </button>
+                </button> */}
                 <FileInput setFile={setFile} setIsImageSelected={setIsImageSelected} />
               </div>
 
