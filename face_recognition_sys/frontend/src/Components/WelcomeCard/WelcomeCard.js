@@ -4,8 +4,9 @@ import { FaCamera } from "react-icons/fa";
 import './WelcomeCard.css';
 import FileInput from '../FileInputComponent/CustomFileInput';
 import Webcam from 'react-webcam';
+import MyLoader from '../MyLoader/MyLoader';
 
-function convertBase64toBlob(base64String){
+function convertBase64toBlob(base64String) {
 
   // Remove any prefix from the base64 string
   const base64Data = base64String.split(',')[1];
@@ -65,15 +66,15 @@ const sendPhoto = async (file, setResponseData) => {
 const LiveCameraPage = (props) => {
   const webcamRef = useRef(null);
 
-  
+
 
   const handleDetect = async () => {
     console.log("Button clicked");
     const imageSrc = webcamRef.current.getScreenshot();
-    
+
     props.setFile(convertBase64toBlob(imageSrc));
-    
-    
+
+
     props.setIsImageSelected(true);
     props.setIsStreamLoading(false);
   };
@@ -81,7 +82,7 @@ const LiveCameraPage = (props) => {
 
   return (
     <>
-      <Webcam className="live-camera-card" imageSmoothing={props.isStreamLoading} ref={webcamRef} />
+      <Webcam className="live-camera-card" imageSmoothing={props.isStreamLoading} screenshotFormat="image/jpeg" ref={webcamRef} />
       <div className='close-detect-btn'>
         <button style={{ width: "16rem" }} onClick={() => {
           console.log("Button clicked");
@@ -95,47 +96,54 @@ const LiveCameraPage = (props) => {
   )
 }
 const ImageSelectedPage = (props) => {
+  const [isLoading, setIsLoading] = useState(false);
+
+
 
   const checkResponseData = () => {
     if (props.responseData != null && props.responseData.status === 'Face Detected') {
       props.setIsFaceDetected(true);
-    }else{
-      props.setIsFaceDetected(false);
     }
   }
 
   const handleDetect = async () => {
+    setIsLoading(true);
+    props.setIsFaceDetected(true);
     console.log("Button clicked");
     await props.sendPhoto(props.image, props.setResponseData);
-    console.log("After the photo send, reponse Data", props.re)
+    console.log("After the photo send, reponse Data", props.responseData);
     checkResponseData();
-    
+
     props.setIsImageSelected(false);
+    setIsLoading(false);
   };
 
   useEffect(() => {
     return () => {
       checkResponseData();
     };
-  }, [props.isFaceDetected]);
+  }, [props.responseData]);
 
 
   return (
     <>
       <div className='selected-image-card'>
+        {isLoading ? <MyLoader /> :
+          <>
+            {props.image && <img className='selected-image' src={URL.createObjectURL(props.image)} alt="Selected Image" />}
 
-        {props.image && <img className='selected-image' src={URL.createObjectURL(props.image)} alt="Selected Image" />}
+            < div className='cancel-detect-btn'>
+              <button style={{ marginTop: "1rem" }} onClick={() => {
+                console.log("Button clicked");
+                props.setIsImageSelected(false);
+              }}>Cancel</button>
+              <button style={{ marginTop: "1rem", marginLeft: "2rem" }} onClick={handleDetect} disabled={isLoading}>Detect</button>
+            </div>
+          </>
+        }
 
-        <div className='cancel-detect-btn'>
-          <button style={{ marginTop: "1rem" }} onClick={() => {
-            console.log("Button clicked");
-            props.setIsImageSelected(false);
-          }}>Cancel</button>
-          <button style={{ marginTop: "1rem", marginLeft: "2rem" }} onClick={handleDetect}>Detect</button>
-        </div>
 
-
-      </div>
+      </div >
     </>
   )
 }
@@ -149,13 +157,13 @@ const FaceDetectedPage = (props) => {
 
         {props.image && <img className='selected-image' src={URL.createObjectURL(props.image)} alt="Selected Image" />}
         {props.responseData && (
-          <> 
-            <div> 
-              {console.log(props.responseData)} 
-              <b>Status: </b> {props.responseData.status} <br/>
-              <b>Name:</b> {props.responseData.user_name}
+          <>
+            <div>
+              {console.log(props.responseData)}
+              <b>Status: </b> {props.responseData.status ? props.responseData.status : "Unknown" } <br />
+              <b>Name:</b> {props.responseData.user_name ? props.responseData.user_name : "Unknown"}
             </div>
-          
+
           </>)}
         <div className='reset-btn'>
           <button style={{ marginTop: "1rem" }} onClick={() => {
@@ -190,26 +198,26 @@ const OptionPage = (props) => {
 
   return (
     <>
-    {console.log(isStreamLoading, isImageSelected, isFaceDetected)}
-    {
-      isStreamLoading ? <LiveCameraPage isStreamLoading={isStreamLoading} setIsStreamLoading={setIsStreamLoading} setIsImageSelected={setIsImageSelected} image={file} setFile={setFile} sendPhoto={sendPhoto} setIsFaceDetected={setIsFaceDetected} setResponseData={setResponseData} responseData={responseData}/> :
-        isImageSelected ? <>
-          <ImageSelectedPage image={file} isImageSelected={isImageSelected} setIsImageSelected={setIsImageSelected} sendPhoto={sendPhoto} setIsFaceDetected={setIsFaceDetected} setResponseData={setResponseData} responseData={responseData} />
-        </> :
-          isFaceDetected ? <>
-            <FaceDetectedPage image={file} setIsFaceDetected={setIsFaceDetected} responseData={responseData} />
+      {console.log(isStreamLoading, isImageSelected, isFaceDetected)}
+      {
+        isStreamLoading ? <LiveCameraPage isStreamLoading={isStreamLoading} setIsStreamLoading={setIsStreamLoading} setIsImageSelected={setIsImageSelected} image={file} setFile={setFile} sendPhoto={sendPhoto} setIsFaceDetected={setIsFaceDetected} setResponseData={setResponseData} responseData={responseData} /> :
+          isImageSelected ? <>
+            <ImageSelectedPage image={file} isImageSelected={isImageSelected} setIsImageSelected={setIsImageSelected} sendPhoto={sendPhoto} setIsFaceDetected={setIsFaceDetected} setResponseData={setResponseData} responseData={responseData} />
           </> :
+            isFaceDetected ? <>
+              <FaceDetectedPage image={file} setIsFaceDetected={setIsFaceDetected} responseData={responseData} />
+            </> :
 
-            <div className='option-card'>
-              <h2>Choose an option</h2>
-              <button onClick={handleButtonClick} disabled={isStreamLoading}>
-                Live Camera
-              </button>
-              <FileInput setFile={setFile} setIsImageSelected={setIsImageSelected} />
-            </div>
+              <div className='option-card'>
+                <h2>Choose an option</h2>
+                <button onClick={handleButtonClick} disabled={isStreamLoading}>
+                  Live Camera
+                </button>
+                <FileInput setFile={setFile} setIsImageSelected={setIsImageSelected} />
+              </div>
 
 
-    }
+      }
 
     </>
   );
