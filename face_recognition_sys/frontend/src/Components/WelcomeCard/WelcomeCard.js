@@ -55,7 +55,7 @@ const API = {
         throw new Error('Invalid file format');
       }
 
-      const response = await fetch('http://127.0.0.1:8000/verify', {
+      const response = await fetch('https://face-recognition-sys-backend-api.onrender.com/verify', {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
