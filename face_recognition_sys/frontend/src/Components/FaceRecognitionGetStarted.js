@@ -1,35 +1,49 @@
 import React from 'react';
-// import GoogleForm from './GoogleForm';
+import PropTypes from 'prop-types';
 import "./FaceRecognitionGetStarted.css";
 import WelcomeCard from './WelcomeCard/WelcomeCard';
-import ModalComponent from './ModalComponent/CustomModal';
 
-function GoogleForm() {
-  return (
-    <div className="google-form">
-      <h2>Sign Up Form</h2>
-      <p>This is a placeholder for the Google Form.</p>
-    </div>
-  );
-}
+const FaceDetectionService = () => {
+  const SIGNUP_FORM_URL = 'https://forms.gle/15pNdt9f3BgL4nTh7';
+  const currentYear = new Date().getFullYear();
 
-function FaceDetectionService() {
   return (
-    <div className="face-detection-service">
-      <h1>Face Detection Service</h1>
+    <main className="face-detection-service">
+      <header>
+        <h1>Face Detection Service</h1>
+      </header>
+      
       <WelcomeCard />
-      {/* <ModalComponent/> */}
-      <p>
-        New to Face Detection Service? <br />
-        Our service provides top-notch face detection to secure your identity.{' '}
-        Sign up now to get registered!<br />
-        <a href="https://forms.gle/15pNdt9f3BgL4nTh7" target='_blank' rel="noreferrer" className="signup-button" >Sign Up</a>
-      </p>
-      <footer>&copy; 2024 Face Detection Service</footer>
-    </div>
+      
+      <section className="service-description">
+        <p>
+          New to Face Detection Service? <br />
+          Our service provides top-notch face detection to secure your identity.{' '}
+          Sign up now to get registered!
+        </p>
+        <a 
+          href={SIGNUP_FORM_URL} 
+          target="_blank" 
+          rel="noreferrer" 
+          className="signup-button"
+        >
+          Sign Up
+        </a>
+      </section>
+
+      <footer>
+        <p>&copy; {currentYear} Face Detection Service</p>
+      </footer>
+    </main>
   );
-}
+};
 
+WelcomeCard.propTypes = {
+  // Add any props that WelcomeCard component accepts
+};
 
+FaceDetectionService.propTypes = {
+  // Add any props if needed in the future
+};
 
 export default FaceDetectionService;

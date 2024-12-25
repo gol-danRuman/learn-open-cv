@@ -1,140 +1,204 @@
-
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-
 from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 import gspread
 import pickle
 from oauth2client.service_account import ServiceAccountCredentials
+import cv2
+import io
+import numpy as np
+from typing import Dict, List, Any, Optional
+import logging
+from functools import lru_cache
+from contextlib import contextmanager
+import time
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
+import httplib2
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Constants
 SPREADSHEET_ID = "14SobbZCDKX9IKOJjY56G-WIOfVc7BctskqEKRG2ImAo"
-# Link to Drive: https://drive.google.com/drive/u/0/folders/1vdCwukuOiDZJOHRbyrOjRi7wksli8zkzkcViZopsyun4HrhO0ANo4bjemYDiXvEmh4oKd3jO
 FILE_ID = '1vAHnSq6eZWOy3YgbZ5LoSiQix6otb_XM'
 FOLDER_ID = '1vdCwukuOiDZJOHRbyrOjRi7wksli8zkzkcViZopsyun4HrhO0ANo4bjemYDiXvEmh4oKd3jO'
-def get_sheet_values(spreadsheet_id):
-    """
-    Creates the batch_update the user has access to.
-    Load pre-authorized user credentials from the environment.
-    TODO(developer) - See https://developers.google.com/identity
-    for guides on implementing OAuth2 for the application.
-    """
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
-    # pylint: disable=maybe-no-member
-    try:
-        service = build("sheets", "v4", credentials=creds)
+SCOPES = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+CREDENTIALS_FILE = 'credentials.json'
+RETRY_COUNT = 3
+CHUNK_SIZE = 262144  # 256KB chunks for downloads
 
-        client = gspread.authorize(creds)
-        sheet = client.open_by_key(spreadsheet_id)
+class GoogleAPIClient:
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(GoogleAPIClient, cls).__new__(cls)
+            cls._instance._initialize()
+        return cls._instance
+    
+    def _initialize(self):
+        self.creds = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE, SCOPES)
+        self._setup_http_retry()
+        self.drive_service = None
+        self.sheets_service = None
+        self.gspread_client = None
+        
+    def _setup_http_retry(self):
+        retry_strategy = Retry(
+            total=RETRY_COUNT,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+        )
+        self.http = httplib2.Http()
+        self.http.timeout = 60  # 60 seconds timeout
+        
+    @property
+    def drive(self):
+        if not self.drive_service:
+            self.drive_service = build('drive', 'v3', credentials=self.creds)
+        return self.drive_service
+    
+    @property
+    def sheets(self):
+        if not self.sheets_service:
+            self.sheets_service = build('sheets', 'v4', credentials=self.creds, http=self.http)
+        return self.sheets_service
+    
+    @property
+    def gspread(self):
+        if not self.gspread_client:
+            self.gspread_client = gspread.authorize(self.creds)
+        return self.gspread_client
+
+@lru_cache(maxsize=100)
+def get_sheet_values(spreadsheet_id: str) -> List[Dict]:
+    """Fetch and cache spreadsheet values."""
+    client = GoogleAPIClient()
+    try:
+        sheet = client.gspread.open_by_key(spreadsheet_id)
         sheet_instance = sheet.get_worksheet(0)
         records_data = sheet_instance.get_all_records()
-        print(f"Records in Sheets : {records_data}")
+        logger.info(f"Successfully fetched {len(records_data)} records from sheets")
         return records_data
     except HttpError as error:
-        print(f"An error occurred while reading sheets: {error}")
-        return error
+        logger.error(f"Failed to read sheets: {error}")
+        raise
 
-
-def get_image(image_id):
-    import cv2
-    import io
-    import numpy as np
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
+@lru_cache(maxsize=1000)
+def get_image(image_id: str) -> Optional[np.ndarray]:
+    """Fetch and cache image from Google Drive."""
+    client = GoogleAPIClient()
     try:
-        service = build('drive', 'v3', credentials=creds)
-        request = service.files().get_media(fileId=image_id)
-        file = io.BytesIO()
-        downloader = MediaIoBaseDownload(file, request)
+        request = client.drive.files().get_media(fileId=image_id)
+        file_buffer = io.BytesIO()
+        downloader = MediaIoBaseDownload(file_buffer, request, chunksize=CHUNK_SIZE)
+        
         done = False
-        while done is False:
-            status, done = downloader.next_chunk()
-        jpg_as_np = np.frombuffer(file.getvalue(), dtype=np.uint8)
+        while not done:
+            _, done = downloader.next_chunk()
+            
+        jpg_as_np = np.frombuffer(file_buffer.getvalue(), dtype=np.uint8)
         img = cv2.imdecode(jpg_as_np, flags=1)
         return img
-        # cv2.imshow('Photo', img)
-        # cv2.waitKey(0)
-
+        
     except HttpError as error:
-        print(f"An error occurred while getting image: {error}")
-        return error
+        logger.error(f"Failed to fetch image {image_id}: {error}")
+        return None
 
-def update_to_drive(encode_list_known):
-
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
+@contextmanager
+def pickle_file_handler(filename: str, mode: str):
+    """Context manager for handling pickle files."""
+    file = None
     try:
-        service = build('drive', 'v3', credentials=creds)
+        file = open(filename, mode)
+        yield file
+    finally:
+        if file:
+            file.close()
 
-        print("Saving Encoded model....")
-        file = open("EncodeFile.p", "wb")
-        pickle.dump(encode_list_known, file)
-        file.close()
+def update_to_drive(encode_list_known: List[Any]) -> None:
+    """Update existing file in Google Drive."""
+    client = GoogleAPIClient()
+    try:
+        logger.info("Saving encoded model...")
+        with pickle_file_handler("EncodeFile.p", "wb") as file:
+            pickle.dump(encode_list_known, file)
+        
         file_metadata = {'name': 'EncodeFile.p'}
-        media = MediaFileUpload('EncodeFile.p', mimetype='application/octet-stream')
-        file = service.files().update(fileId=FILE_ID,body=file_metadata, media_body=media,fields='id').execute()
-        print(f"File: {file}")
-        print(f'File ID: {file.get("id")}')
-
+        media = MediaFileUpload('EncodeFile.p', 
+                              mimetype='application/octet-stream',
+                              resumable=True)
+        
+        file = client.drive.files().update(
+            fileId=FILE_ID,
+            body=file_metadata,
+            media_body=media,
+            fields='id'
+        ).execute()
+        
+        logger.info(f"File updated successfully. ID: {file.get('id')}")
+        
     except HttpError as error:
-        print(f"An error occurred while getting image: {error}")
-        return error
+        logger.error(f"Failed to update file: {error}")
+        raise
 
-
-def create_to_drive_in_folder(encode_list_known):
-
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
+def create_to_drive_in_folder(encode_list_known: List[Any]) -> None:
+    """Create new file in Google Drive folder."""
+    client = GoogleAPIClient()
     try:
-        service = build('drive', 'v3', credentials=creds)
-
-        print("Saving Encoded model....")
-        file = open("EncodeFile.p", "wb")
-        pickle.dump(encode_list_known, file)
-        file.close()
-        file_metadata = {'name': 'EncodeFile.p', 'parents': [FOLDER_ID]}
-        media = MediaFileUpload('EncodeFile.p', mimetype='application/octet-stream')
-        file = service.files().create(fileId=FILE_ID,body=file_metadata, media_body=media,fields='id').execute()
-        print(f"File: {file}")
-        print(f'File ID: {file.get("id")}')
-
+        logger.info("Saving encoded model...")
+        with pickle_file_handler("EncodeFile.p", "wb") as file:
+            pickle.dump(encode_list_known, file)
+        
+        file_metadata = {
+            'name': 'EncodeFile.p',
+            'parents': [FOLDER_ID]
+        }
+        media = MediaFileUpload('EncodeFile.p',
+                              mimetype='application/octet-stream',
+                              resumable=True)
+        
+        file = client.drive.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id'
+        ).execute()
+        
+        logger.info(f"File created successfully. ID: {file.get('id')}")
+        
     except HttpError as error:
-        print(f"An error occurred while getting image: {error}")
-        return error
+        logger.error(f"Failed to create file: {error}")
+        raise
 
-
-def load_model_file():
-    import io
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
+def load_model_file() -> Optional[io.BytesIO]:
+    """Load model file from Google Drive."""
+    client = GoogleAPIClient()
     try:
-        service = build('drive', 'v3', credentials=creds)
-        file_id = FILE_ID
-
-        # pylint: disable=maybe-no-member
-        request = service.files().get_media(fileId=file_id)
-        file = io.BytesIO()
-        downloader = MediaIoBaseDownload(file, request)
+        request = client.drive.files().get_media(fileId=FILE_ID)
+        file_buffer = io.BytesIO()
+        downloader = MediaIoBaseDownload(file_buffer, request, chunksize=CHUNK_SIZE)
+        
         done = False
-        while done is False:
+        while not done:
             status, done = downloader.next_chunk()
-            print(f"Download {int(status.progress() * 100)}.")
-
-        # print(file, file.getvalue())
-        return file
-
+            logger.info(f"Download progress: {int(status.progress() * 100)}%")
+            
+        return file_buffer
+        
     except HttpError as error:
-        print(f"An error occurred while getting image: {error}")
-        return error
+        logger.error(f"Failed to load model file: {error}")
+        return None
 
 if __name__ == "__main__":
-
-    # Pass: spreadsheet_id, and range_name
-    rows = get_sheet_values(SPREADSHEET_ID)
-
-    for row in rows:
-        # print(row['Share Passport Photo (>1MB)'].split("id=")[1])
-        get_image(row['Share Passport Photo (>1MB)'].split("id=")[1])
+    try:
+        rows = get_sheet_values(SPREADSHEET_ID)
+        for row in rows:
+            image_id = row['Share Passport Photo (>1MB)'].split("id=")[1]
+            get_image(image_id)
+    except Exception as e:
+        logger.error(f"Main execution failed: {e}")
 
 
 

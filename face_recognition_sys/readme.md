@@ -24,6 +24,8 @@
   - get info from sheet and images from drive, which is stored the model as pickle file
   - import that pickle file and get images from the camera to compare the face matching to the already created model
 
+> uvicorn fast_api_main:app --reload
+
 ## Frontend
 
 React applicaton to connect face recognition system build from [ref](https://www.smashingmagazine.com/2020/06/facial-recognition-web-application-react/)

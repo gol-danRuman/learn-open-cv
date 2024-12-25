@@ -6,235 +6,431 @@ import FileInput from '../FileInputComponent/CustomFileInput';
 import Webcam from 'react-webcam';
 import MyLoader from '../MyLoader/MyLoader';
 
-function convertBase64toBlob(base64String) {
+const convertBase64toBlob = (base64String) => {
+  try {
+    const base64Data = base64String.split(',')[1];
+    const binaryString = atob(base64Data);
+    const buffer = new ArrayBuffer(binaryString.length);
+    const view = new Uint8Array(buffer);
+    
+    for (let i = 0; i < binaryString.length; i++) {
+      view[i] = binaryString.charCodeAt(i);
+    }
 
-  // Remove any prefix from the base64 string
-  const base64Data = base64String.split(',')[1];
+    const timestamp = new Date().getTime();
+    const fileName = `captured_image_${timestamp}.jpg`;
 
-  // Decode the base64 string using the atob() function
-  const binaryString = atob(base64Data);
+    const file = new File([buffer], fileName, {
+      type: 'image/jpeg',
+      lastModified: Date.now()
+    });
 
-  // Convert the binary string into an array of unsigned 8-bit integers
-  const binaryArray = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    binaryArray[i] = binaryString.charCodeAt(i);
+    return file;
+  } catch (error) {
+    console.error('Error converting base64 to blob:', error);
+    throw new Error('Failed to process captured image');
   }
+};
 
-  // Create a new ArrayBuffer object and a new Uint8Array view of the array buffer
-  const arrayBuffer = binaryArray.buffer;
+const API = {
+  async verifyPhoto(file, setResponseData) {
+    try {
+      const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2);
+      
+      const formData = new FormData();
+      
+      if (file instanceof File) {
+        formData.append('file', file, file.name);
+      } else if (file instanceof Blob) {
+        const timestamp = new Date().getTime();
+        const fileName = `captured_image_${timestamp}.jpg`;
+        
+        const fileFromBlob = new File([file], fileName, {
+          type: 'image/jpeg',
+          lastModified: Date.now()
+        });
+        
+        formData.append('file', fileFromBlob, fileName);
+      } else {
+        throw new Error('Invalid file format');
+      }
 
-  // Create a new Blob object using the Blob() constructor
-  return new Blob([arrayBuffer], { type: 'image/jpeg' });
+      const response = await fetch('http://127.0.0.1:8000/verify', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+        },
+        body: formData
+      });
 
+      const data = await response.json();
+      
+      if (!response.ok) {
+        setResponseData({ 
+          error: data.message || data.error || 'Please upload a photo with a clear image where face, eyes, and ears are properly visible'
+        });
+        return null;
+      }
 
-}
-const LandingPage = (props) => {
+      setResponseData(data);
+      return data;
+    } catch (error) {
+      console.error('Error verifying photo:', error);
+      setResponseData({ 
+        error: 'Please upload a photo with a clear image where face, eyes, and ears are properly visible'
+      });
+      return null;
+    }
+  }
+};
+
+const LandingPage = ({ handleOptionOpen }) => (
+  <div>
+    <MdFace className="welcome-icon" />
+    <h2 className="welcome-title">Welcome Back!</h2>
+    <p className="welcome-text">Use our face detection service to enhance your security.</p>
+    <button className="welcome-button" onClick={handleOptionOpen}>
+      <FaCamera className='camera-icon' />Initiate Face Detection
+    </button>
+  </div>
+);
+
+const LiveCameraPage = ({ 
+  setFile, 
+  setIsImageSelected, 
+  setIsStreamLoading, 
+  isStreamLoading,
+  setIsFaceDetected,
+  setResponseData 
+}) => {
+  const webcamRef = useRef(null);
+
+  const handleCapture = useCallback(async () => {
+    try {
+      const imageSrc = webcamRef.current?.getScreenshot();
+      if (imageSrc) {
+        const imageFile = await convertBase64toBlob(imageSrc);
+        setFile(imageFile);
+        setIsStreamLoading(false);
+        setIsImageSelected(true);
+      }
+    } catch (error) {
+      console.error('Error capturing image:', error);
+      alert('Failed to capture image. Please try again.');
+    }
+  }, [setFile, setIsImageSelected, setIsStreamLoading]);
+
   return (
-    <div>
-      <MdFace className="welcome-icon" />
-      <h2 className="welcome-title">Welcome Back!</h2>
-      <p className="welcome-text">Use our face detection service to enhance your security.</p>
-      <button className="welcome-button" onClick={props.handleOptionOpen}><FaCamera className='camera-icon' />Initiate Face Detection</button>
+    <>
+      <Webcam 
+        className="live-camera-card" 
+        imageSmoothing={isStreamLoading} 
+        screenshotFormat="image/jpeg" 
+        ref={webcamRef} 
+        mirrored={true}
+        width={400}
+        height={300}
+      />
+      <div className='close-detect-btn'>
+        <button 
+          className="action-button"
+          onClick={() => setIsStreamLoading(false)}
+        >
+          Close Camera
+        </button>
+        <button 
+          className="action-button detect-button"
+          onClick={handleCapture}
+        >
+          Capture Image
+        </button>
+      </div>
+    </>
+  );
+};
+
+const ImageSelectedPage = ({ image, setIsImageSelected, setIsFaceDetected, setResponseData, responseData }) => {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleDetect = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const result = await API.verifyPhoto(image, setResponseData);
+      if (result) {
+        setIsFaceDetected(true);
+        setIsImageSelected(false);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [image, setResponseData, setIsFaceDetected, setIsImageSelected]);
+
+  return (
+    <div className='selected-image-card'>
+      {isLoading ? (
+        <MyLoader />
+      ) : (
+        <div>
+          {image && (
+            <div className="preview-container">
+              <img 
+                className='selected-image' 
+                src={URL.createObjectURL(image)} 
+                alt="Selected" 
+              />
+              <div className='image-actions'>
+                <button 
+                  className="action-button detect-button"
+                  onClick={handleDetect} 
+                  disabled={isLoading}
+                >
+                  Detect
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="error-message">
+            {isLoading && <p>Processing image...</p>}
+            {responseData?.error && (
+              <p style={{ 
+                color: 'red',
+                textAlign: 'center',
+                padding: '10px',
+                margin: '10px 0'
+              }}>
+                {responseData.error}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-const sendPhoto = async (file, setResponseData) => {
-  const formData = new FormData();
-  formData.append('file', file);
-
-  try {
-    const response = await fetch('https://face-recognition-sys-backend-api.onrender.com/verify', {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      alert('Something went wrong. Please Sign Up if you have not signed up yet.');
-      setResponseData(null);
-      // throw new Error('Failed to send photo');
-    }
-
-    const data = await response.json();
-    setResponseData(data);
-    console.log('Photo upload successful:', data);
-  } catch (error) {
-    console.error('Error sending photo:', error);
-  }
-};
-
-const LiveCameraPage = (props) => {
-  const webcamRef = useRef(null);
-
-
-
-  const handleDetect = async () => {
-    console.log("Button clicked");
-    const imageSrc = webcamRef.current.getScreenshot();
-
-    props.setFile(convertBase64toBlob(imageSrc));
-
-
-    props.setIsImageSelected(true);
-    props.setIsStreamLoading(false);
-  };
-
-
-  return (
-    <>
-      <Webcam className="live-camera-card" imageSmoothing={props.isStreamLoading} screenshotFormat="image/jpeg" ref={webcamRef} />
-      <div className='close-detect-btn'>
-        <button style={{ width: "16rem" }} onClick={() => {
-          console.log("Button clicked");
-          props.setIsStreamLoading(false);
-        }}>Close Camera</button>
-        <button style={{ width: "16rem", marginLeft: "4rem" }} onClick={handleDetect}>Capture</button>
-
-      </div>
-
-    </>
-  )
-}
-const ImageSelectedPage = (props) => {
-  const [isLoading, setIsLoading] = useState(false);
-
-
-
-  const checkResponseData = () => {
-    if (props.responseData != null && props.responseData.status === 'Face Detected') {
-      props.setIsFaceDetected(true);
-    }
-  }
-
-  const handleDetect = async () => {
-    setIsLoading(true);
-    props.setIsFaceDetected(true);
-    console.log("Button clicked");
-    await props.sendPhoto(props.image, props.setResponseData);
-    console.log("After the photo send, reponse Data", props.responseData);
-    checkResponseData();
-
-    props.setIsImageSelected(false);
-    setIsLoading(false);
-  };
-
-
-
-  return (
-    <>
-      <div className='selected-image-card'>
-        {isLoading ? <MyLoader /> :
-          <>
-            {props.image && <img className='selected-image' src={URL.createObjectURL(props.image)} alt="Selected Image" />}
-
-            < div className='cancel-detect-btn'>
-              <button style={{ marginTop: "1rem" }} onClick={() => {
-                console.log("Button clicked");
-                props.setIsImageSelected(false);
-                props.setIsFaceDetected(false);
-                props.setResponseData(null);
-              }}>Cancel</button>
-              <button style={{ marginTop: "1rem", marginLeft: "2rem" }} onClick={handleDetect} disabled={isLoading}>Detect</button>
-            </div>
-          </>
-        }
-
-
-      </div >
-    </>
-  )
-}
-
-const FaceDetectedPage = (props) => {
-
-
-  return (
-    <>
-      <div className='result-card'>
-
-        {props.image && <img className='selected-image' src={URL.createObjectURL(props.image)} alt="Selected Image" />}
-        {props.responseData && (
-          <>
-            <div>
-              {console.log(props.responseData)}
-              <b>Status: </b> {props.responseData.status ? props.responseData.status : "Unknown" } <br />
-              <b>Name:</b> {props.responseData.user_name ? props.responseData.user_name : "Unknown"}
-            </div>
-
-          </>)}
-        <div className='reset-btn'>
-          <button style={{ marginTop: "1rem" }} onClick={() => {
-            console.log("Button clicked");
-            props.setIsFaceDetected(false);
-          }}>Reset</button>
+const FaceDetectedPage = ({ image, responseData }) => (
+  <div className='result-card'>
+    {image && (
+      <img 
+        className='selected-image' 
+        src={URL.createObjectURL(image)} 
+        alt="Selected" 
+      />
+    )}
+    {responseData && responseData.user_data && (
+      <div className="user-details">
+        <h3>User Details</h3>
+        <div className="detail-row">
+          <b>Name:</b> {responseData.user_data.name}
         </div>
-
-
+        <div className="detail-row">
+          <b>Email:</b> {responseData.user_data.email}
+        </div>
+        <div className="detail-row">
+          <b>Contact:</b> {responseData.user_data.contact}
+        </div>
       </div>
-    </>
-  )
-}
+    )}
+  </div>
+);
 
-const OptionPage = (props) => {
-  const [isStreamLoading, setIsStreamLoading] = useState(false);
-  const [isImageSelected, setIsImageSelected] = useState(false);
-  const [isFaceDetected, setIsFaceDetected] = useState(false);
-  const [responseData, setResponseData] = useState(null);
-  const [file, setFile] = useState(null);
+const OptionPage = ({ isStreamOpen, setIsStreamOpen, handleBack, initialFile, initialImageSelected }) => {
+  const [state, setState] = useState({
+    isStreamLoading: isStreamOpen,
+    isImageSelected: initialImageSelected,
+    isFaceDetected: false,
+    responseData: null,
+    file: initialFile
+  });
 
-  const handleButtonClick = () => {
-    setIsStreamLoading(true);
-    props.handleStreamLoad();
-  };
-
-  useEffect(() => {
-    return () => {
-      setIsStreamLoading(false);
-    };
+  const setStateValue = useCallback((key, value) => {
+    setState(prev => ({ ...prev, [key]: value }));
   }, []);
 
-  return (
-    <>
-      {console.log(isStreamLoading, isImageSelected, isFaceDetected)}
-      {
-        isStreamLoading ? <LiveCameraPage isStreamLoading={isStreamLoading} setIsStreamLoading={setIsStreamLoading} setIsImageSelected={setIsImageSelected} image={file} setFile={setFile} sendPhoto={sendPhoto} setIsFaceDetected={setIsFaceDetected} setResponseData={setResponseData} responseData={responseData} /> :
-          isImageSelected ? <>
-            <ImageSelectedPage image={file} isImageSelected={isImageSelected} setIsImageSelected={setIsImageSelected} sendPhoto={sendPhoto} setIsFaceDetected={setIsFaceDetected} setResponseData={setResponseData} responseData={responseData} />
-          </> :
-            isFaceDetected ? <>
-              <FaceDetectedPage image={file} setIsFaceDetected={setIsFaceDetected} responseData={responseData} />
-            </> :
+  useEffect(() => {
+    setStateValue('isStreamLoading', isStreamOpen);
+  }, [isStreamOpen, setStateValue]);
 
-              <div className='option-card'>
-                <h2>Choose an option</h2>
-                {/* <button onClick={handleButtonClick} disabled={isStreamLoading}>
-                  Live Camera
-                </button> */}
-                <FileInput setFile={setFile} setIsImageSelected={setIsImageSelected} />
-              </div>
+  useEffect(() => {
+    if (initialFile) {
+      setStateValue('file', initialFile);
+      setStateValue('isImageSelected', true);
+    }
+  }, [initialFile, setStateValue]);
 
+  const renderContent = () => {
+    if (state.isStreamLoading) {
+      return (
+        <>
+          <LiveCameraPage 
+            isStreamLoading={state.isStreamLoading}
+            setIsStreamLoading={(value) => {
+              setStateValue('isStreamLoading', value);
+              setIsStreamOpen(value);
+            }}
+            setIsImageSelected={(value) => setStateValue('isImageSelected', value)}
+            setFile={(value) => setStateValue('file', value)}
+            setIsFaceDetected={(value) => setStateValue('isFaceDetected', value)}
+            setResponseData={(value) => setStateValue('responseData', value)}
+          />
+          <button className="back-button" onClick={handleBack}>
+            Back to Options
+          </button>
+        </>
+      );
+    }
 
-      }
+    if (state.isImageSelected) {
+      return (
+        <>
+          <ImageSelectedPage 
+            image={state.file}
+            setIsImageSelected={(value) => setStateValue('isImageSelected', value)}
+            setIsFaceDetected={(value) => setStateValue('isFaceDetected', value)}
+            setResponseData={(value) => setStateValue('responseData', value)}
+            responseData={state.responseData}
+          />
+          <button className="back-button" onClick={handleBack}>
+            Back to Options
+          </button>
+        </>
+      );
+    }
 
-    </>
-  );
+    if (state.isFaceDetected) {
+      return (
+        <>
+          <FaceDetectedPage 
+            image={state.file}
+            responseData={state.responseData}
+          />
+          <button className="back-button" onClick={handleBack}>
+            Back to Options
+          </button>
+        </>
+      );
+    }
+
+    return (
+      <div className='option-card'>
+        <h2>Choose an option</h2>
+        <FileInput 
+          setFile={(value) => setStateValue('file', value)}
+          setIsImageSelected={(value) => setStateValue('isImageSelected', value)}
+        />
+        <button className="back-button" onClick={handleBack}>
+          Back to Options
+        </button>
+      </div>
+    );
+  };
+
+  return <>{renderContent()}</>;
 };
-
 
 const WelcomeCard = () => {
   const [optionOpen, setOptionOpen] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
+  const [isStreamOpen, setIsStreamOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const fileInputRef = useRef(null);
 
-  const handleOptionOpen = () => {
+  const handleBack = useCallback(() => {
+    setOptionOpen(false);
+    setIsStreamOpen(false);
+    setShowOptions(true);
+    setSelectedFile(null);
+  }, []);
+
+  const handleOptionOpen = useCallback(() => {
+    setShowOptions(true);
+  }, []);
+
+  const handleCameraOption = useCallback(() => {
+    setIsStreamOpen(true);
     setOptionOpen(true);
-  };
+  }, []);
 
-  const handleStreamLoad = () => {
-    // handle stream loading logic here
+  const handleFileOption = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback((event) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+      }
+      
+      const imageFile = new File([file], file.name, {
+        type: file.type,
+        lastModified: file.lastModified
+      });
+      
+      setSelectedFile(imageFile);
+      setOptionOpen(true);
+    }
+  }, [setOptionOpen]);
+
+  const renderOptions = () => (
+    <div className="options-container">
+      <h2 className="welcome-title">Choose an Option</h2>
+      <div className="options-buttons">
+        <button 
+          className="option-button"
+          onClick={handleFileOption}
+        >
+          <FaCamera className='camera-icon' />
+          Upload Photo
+        </button>
+        <button 
+          className="option-button"
+          onClick={handleCameraOption}
+        >
+          <FaCamera className='camera-icon' />
+          Use Camera
+        </button>
+      </div>
+      <button 
+        className="back-button"
+        onClick={() => setShowOptions(false)}
+      >
+        Back
+      </button>
+    </div>
+  );
+
+  const renderContent = () => {
+    if (optionOpen) {
+      return (
+        <OptionPage 
+          isStreamOpen={isStreamOpen}
+          setIsStreamOpen={setIsStreamOpen}
+          handleBack={handleBack}
+          initialFile={selectedFile}
+          initialImageSelected={!!selectedFile}
+        />
+      );
+    }
+
+    if (showOptions) {
+      return renderOptions();
+    }
+
+    return <LandingPage handleOptionOpen={handleOptionOpen} />;
   };
 
   return (
     <div className="welcome-card">
-      {optionOpen ? <OptionPage handleStreamLoad={handleStreamLoad} handleOptionOpen={handleOptionOpen} /> : <LandingPage handleOptionOpen={handleOptionOpen} />}
+      {renderContent()}
+      <input
+        type="file"
+        ref={fileInputRef}
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+        accept="image/*"
+      />
     </div>
   );
 };
